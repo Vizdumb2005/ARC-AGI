@@ -109,34 +109,41 @@ def try_tile(inp, out):
     return None
 
 
-def try_pattern_tile(inp, out):
-    """Try tiling with various swap strategies."""
-    h_in, w_in = grid_dims(inp)
-    h_out, w_out = grid_dims(out)
+def try_pattern_tile(task):
+    """Try tiling with various swap strategies, verified on ALL train pairs."""
+    train = task.get("train", [])
+    if not train:
+        return None
+    inp0, out0 = train[0]["input"], train[0]["output"]
+    h_in, w_in = grid_dims(inp0)
+    h_out, w_out = grid_dims(out0)
     if h_in == 0 or w_in == 0 or h_out == 0 or w_out == 0:
         return None
-    if h_out > h_in and w_out > w_in and h_out % h_in == 0 and w_out % w_in == 0:
-        fh, fw = h_out // h_in, w_out // w_in
-        swap_strategies = [
-            ("color_swap", _swap_colors_for_tile(inp)),
-            ("reflect_v", reflect_v(inp)),
-            ("reflect_h", reflect_h(inp)),
-            ("reflect_diag", reflect_diag(inp)),
-            ("rotate_180", rotate(inp, 180)),
-            ("transpose", transpose(inp)),
-        ]
-        # Only add rotations that preserve dimensions
-        if grid_dims(rotate(inp, 90)) == (h_in, w_in):
-            swap_strategies.append(("rotate_90", rotate(inp, 90)))
-            swap_strategies.append(("rotate_270", rotate(inp, 270)))
-
-        for swap_name, swapped_tile in swap_strategies:
-            if grid_dims(swapped_tile) != (h_in, w_in):
+    if not (h_out > h_in and w_out > w_in and h_out % h_in == 0 and w_out % w_in == 0):
+        return None
+    
+    fh, fw = h_out // h_in, w_out // w_in
+    strategy_names = ["color_swap", "reflect_v", "reflect_h", "reflect_diag", 
+                      "rotate_180", "transpose", "rotate_90", "rotate_270", "none"]
+    
+    for swap_name in strategy_names:
+        for swap_mode in ["row_alternate", "col_alternate", "checkerboard", "none"]:
+            if swap_mode == "none" and swap_name != "color_swap":
                 continue
-            for swap_mode in ["row_alternate", "col_alternate", "checkerboard", "none"]:
-                if swap_mode == "none" and swap_name != "color_swap":
-                    continue
-                result = [[0]*w_out for _ in range(h_out)]
+            # Verify on ALL train pairs
+            all_match = True
+            for pair in train:
+                inp, out = pair["input"], pair["output"]
+                ih, iw = grid_dims(inp)
+                oh, ow = grid_dims(out)
+                if (oh, ow) != (h_out, w_out) or (ih, iw) != (h_in, w_in):
+                    all_match = False
+                    break
+                swapped = swap_fn_for(swap_name, inp)
+                if grid_dims(swapped) != (h_in, w_in):
+                    all_match = False
+                    break
+                result = [[0]*ow for _ in range(oh)]
                 for tr in range(fh):
                     for tc in range(fw):
                         use_swap = (
@@ -144,13 +151,39 @@ def try_pattern_tile(inp, out):
                             swap_mode == "col_alternate" and tc % 2 == 1 or
                             swap_mode == "checkerboard" and (tr + tc) % 2 == 1
                         )
-                        tile = swapped_tile if use_swap else inp
-                        for r in range(h_in):
-                            for c in range(w_in):
-                                result[tr*h_in + r][tc*w_in + c] = tile[r][c]
-                if grid_equals(result, out):
-                    return (fh, fw, f"{swap_name}:{swap_mode}")
+                        tile = swapped if use_swap else inp
+                        for r in range(ih):
+                            for c in range(iw):
+                                result[tr*ih + r][tc*iw + c] = tile[r][c]
+                if not grid_equals(result, out):
+                    all_match = False
+                    break
+            if all_match:
+                return (fh, fw, f"{swap_name}:{swap_mode}")
     return None
+
+
+def swap_fn_for(strategy_name, g):
+    """Get swap function result for a strategy name."""
+    if strategy_name == "color_swap":
+        return _swap_colors_for_tile(g)
+    elif strategy_name == "reflect_v":
+        return reflect_v(g)
+    elif strategy_name == "reflect_h":
+        return reflect_h(g)
+    elif strategy_name == "reflect_diag":
+        return reflect_diag(g)
+    elif strategy_name == "rotate_180":
+        return rotate(g, 180)
+    elif strategy_name == "rotate_90":
+        return rotate(g, 90)
+    elif strategy_name == "rotate_270":
+        return rotate(g, 270)
+    elif strategy_name == "transpose":
+        return transpose(g)
+    elif strategy_name == "none":
+        return g
+    return _swap_colors_for_tile(g)
 
 
 def try_recolor(inp, out):
@@ -325,21 +358,10 @@ def generate_candidates(task):
     if tile:
         candidates.append([("tile", {"rows": tile[0], "cols": tile[1]})])
     
-    # Pattern tile (checkerboard swap with various strategies)
-    ptile = try_pattern_tile(inp0, out0)
+    # Pattern tile (checkerboard swap with various strategies, verified on ALL pairs)
+    ptile = try_pattern_tile(task)
     if ptile:
         swap_name, swap_mode = ptile[2].split(":")
-        swap_fn_map = {
-            "color_swap": _swap_colors_for_tile,
-            "reflect_v": reflect_v,
-            "reflect_h": reflect_h,
-            "reflect_diag": reflect_diag,
-            "rotate_180": lambda g: rotate(g, 180),
-            "rotate_90": lambda g: rotate(g, 90),
-            "rotate_270": lambda g: rotate(g, 270),
-            "transpose": transpose,
-        }
-        swapped = swap_fn_map[swap_name](inp0)
         candidates.append([
             ("pattern_tile_custom", {"rows": ptile[0], "cols": ptile[1],
                                      "swap_mode": swap_mode, "swap_strategy": swap_name})
