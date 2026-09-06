@@ -66,8 +66,13 @@ final_validation_report.md, submission.json
 
 ## Branch inspection corrections
 
-The current branch already contains `substrate.py`, `diagnostics.py`, `representations.py`, `primitives.py`, `inference.py`, and `search.py`. The plan-listed `grammar.py`, `verification.py`, `adaptation.py`, `portfolio.py`, `submission.py`, and `main.py` still need to be implemented or explicitly removed from the plan.
+The current branch contains `substrate.py`, `diagnostics.py`, `representations.py`, `primitives.py`, `inference.py`, `search.py`, plus the new hybrid `verification.py`, `vision_proposer.py`, `portfolio.py`, `submission.py`, and `main.py`. `grammar.py` and `adaptation.py` remain optional future modules; they should be added only after baseline validation.
 
 Before Kaggle execution, remove hard-coded `/tmp/kilo/arc_data` demo paths, establish stable imports, add a data-file discovery/selection layer, and keep solution files isolated from test inference. The tracked `__pycache__` files should not be expanded and should eventually be removed from version control.
 
 See `docs/arc_agi2/RESEARCH_GUIDANCE.md`, `docs/arc_agi2/EXPERIMENT_MATRIX.md`, and `docs/arc_agi2/CLAIM_AUDIT.md`.
+
+
+## Hybrid model route
+
+The optional offline vision route is proposal-only: it emits structured candidates, then exact verification rejects any candidate that fails a training pair. The symbolic route remains the default fallback. No remote API calls or mandatory ML dependencies are allowed.
