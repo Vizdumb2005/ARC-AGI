@@ -79,3 +79,15 @@ The official ARC-AGI-2 structure is 1,000 public training tasks and 120 public e
 8. Only then consider broader primitives, parse mutation, or optional neural proposals.
 
 Do not claim a competition score until the notebook has run with the actual Kaggle rerun file. Do not click or automate Kaggle submission from code.
+
+## Hybrid implementation now present
+
+The branch now includes an offline-safe hybrid scaffold under solver/src:
+
+- verification.py — exact grid, training-pair, and submission validation.
+- vision_proposer.py — framework-neutral adapter for a locally packaged model.
+- portfolio.py — deterministic ranking of verified symbolic and model candidates.
+- submission.py — test-file discovery, task loading, schema generation, and JSON round-trip validation.
+- main.py — Kaggle entrypoint with the model route disabled by default.
+
+To enable a model, inject a local callable into OfflineVisionProposer. The callable must return strict JSON, use no network access, and pass exact verification on every training pair. The default entrypoint remains runnable without model weights.
